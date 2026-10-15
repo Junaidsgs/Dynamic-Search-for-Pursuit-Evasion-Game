@@ -1,0 +1,14 @@
+For Environment Generation in Python
+    Recursive Backtracking 
+    Randomized Prim’s algorithms
+
+For Search algorithms
+    BFS
+    A*
+    Minimax
+
+Evaluation:
+
+For Environment Generation in Unity
+    Wave Function Collapse
+    Check out Navmesh and how it works in Unity
