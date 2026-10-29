@@ -31,7 +31,13 @@ public class AStarPathfinder : MonoBehaviour
         if (timer >= repathRate)
         {
             timer = 0f;
-            RoadGraphNode startNode = city.GetClosestNode(transform.position);
+
+            // Start search from the waypoint we are currently walking toward (if we have one)
+            // so we don't snap backward to the node behind us mid-tile
+            RoadGraphNode startNode = (currentPath != null && pathIndex < currentPath.Count && currentPath[pathIndex] != null)
+                ? currentPath[pathIndex]
+                : city.GetClosestNode(transform.position);
+
             RoadGraphNode goalNode = city.GetClosestNode(target.position);
             currentPath = FindPath(startNode, goalNode);
             pathIndex = 0;
@@ -59,6 +65,9 @@ public class AStarPathfinder : MonoBehaviour
     {
         if (start == null || goal == null) return new List<RoadGraphNode>();
 
+        if (SearchStatsDebugger.Instance != null)
+            SearchStatsDebugger.Instance.StartSearchTimer();
+
         List<RoadGraphNode> openList = new List<RoadGraphNode> { start };
         HashSet<RoadGraphNode> closedList = new HashSet<RoadGraphNode>();
 
@@ -77,7 +86,10 @@ public class AStarPathfinder : MonoBehaviour
 
             if (current == goal)
             {
-                return ReconstructPath(cameFrom, current);
+                List<RoadGraphNode> finalPath = ReconstructPath(cameFrom, current);
+                if (SearchStatsDebugger.Instance != null)
+                    SearchStatsDebugger.Instance.StopSearchTimer("A*", closedList.Count, finalPath.Count);
+                return finalPath;
             }
 
             openList.RemoveAt(0);
@@ -105,6 +117,9 @@ public class AStarPathfinder : MonoBehaviour
         }
 
         // TODO: Handle case when start and goal are on disconnected road pieces
+        if (SearchStatsDebugger.Instance != null)
+            SearchStatsDebugger.Instance.StopSearchTimer("A* (No Path)", closedList.Count, 0);
+
         return new List<RoadGraphNode>();
     }
 

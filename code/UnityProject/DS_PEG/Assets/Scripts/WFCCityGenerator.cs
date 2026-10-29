@@ -121,6 +121,9 @@ public class WFCCityGenerator : MonoBehaviour
     [ContextMenu("Generate City")]
     public void GenerateCity()
     {
+        if (SearchStatsDebugger.Instance != null)
+            SearchStatsDebugger.Instance.StartWFCTimer();
+
         SetupTiles();
         if (tileList.Count == 0) return;
 
@@ -211,6 +214,9 @@ public class WFCCityGenerator : MonoBehaviour
         // 4. Connect road graph nodes along valid RoadOpen sockets
         BuildRoadGraph(chosenGrid);
 
+        if (SearchStatsDebugger.Instance != null)
+            SearchStatsDebugger.Instance.StopWFCTimer(allRoadNodes.Count);
+
         // 5. Place Pursuer, Evader, and Goal on random road nodes
         SpawnObjectsOnRoads();
     }
@@ -236,23 +242,73 @@ public class WFCCityGenerator : MonoBehaviour
             if (g != null) goal = g.transform;
         }
 
-        if (pursuer != null)
+        // Find the largest connected group of road nodes so Pursuer, Evader, and Goal are always on the same connected road network
+        List<RoadGraphNode> mainRoadGroup = GetLargestConnectedRoadGroup();
+        if (mainRoadGroup.Count == 0) return;
+
+        RoadGraphNode pNode = mainRoadGroup[Random.Range(0, mainRoadGroup.Count)];
+        RoadGraphNode eNode = mainRoadGroup[Random.Range(0, mainRoadGroup.Count)];
+        RoadGraphNode gNode = mainRoadGroup[Random.Range(0, mainRoadGroup.Count)];
+
+        // Make sure they don't pick the exact same tile if there are enough road tiles
+        if (mainRoadGroup.Count >= 3)
         {
-            RoadGraphNode node = allRoadNodes[Random.Range(0, allRoadNodes.Count)];
-            pursuer.position = new Vector3(node.WorldPosition.x, pursuer.position.y, node.WorldPosition.z);
+            while (eNode == pNode)
+                eNode = mainRoadGroup[Random.Range(0, mainRoadGroup.Count)];
+
+            while (gNode == pNode || gNode == eNode)
+                gNode = mainRoadGroup[Random.Range(0, mainRoadGroup.Count)];
         }
+
+        if (pursuer != null)
+            pursuer.position = new Vector3(pNode.WorldPosition.x, pursuer.position.y, pNode.WorldPosition.z);
 
         if (evader != null)
-        {
-            RoadGraphNode node = allRoadNodes[Random.Range(0, allRoadNodes.Count)];
-            evader.position = new Vector3(node.WorldPosition.x, evader.position.y, node.WorldPosition.z);
-        }
+            evader.position = new Vector3(eNode.WorldPosition.x, evader.position.y, eNode.WorldPosition.z);
 
         if (goal != null)
+            goal.position = new Vector3(gNode.WorldPosition.x, goal.position.y, gNode.WorldPosition.z);
+    }
+
+    // Simple BFS to find the largest connected road component
+    List<RoadGraphNode> GetLargestConnectedRoadGroup()
+    {
+        List<RoadGraphNode> largestGroup = new List<RoadGraphNode>();
+        HashSet<RoadGraphNode> visited = new HashSet<RoadGraphNode>();
+
+        foreach (RoadGraphNode startNode in allRoadNodes)
         {
-            RoadGraphNode node = allRoadNodes[Random.Range(0, allRoadNodes.Count)];
-            goal.position = new Vector3(node.WorldPosition.x, goal.position.y, node.WorldPosition.z);
+            if (startNode == null || visited.Contains(startNode))
+                continue;
+
+            List<RoadGraphNode> group = new List<RoadGraphNode>();
+            Queue<RoadGraphNode> queue = new Queue<RoadGraphNode>();
+
+            visited.Add(startNode);
+            queue.Enqueue(startNode);
+
+            while (queue.Count > 0)
+            {
+                RoadGraphNode curr = queue.Dequeue();
+                group.Add(curr);
+
+                foreach (RoadGraphNode neighbor in curr.neighbors)
+                {
+                    if (neighbor != null && !visited.Contains(neighbor))
+                    {
+                        visited.Add(neighbor);
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+
+            if (group.Count > largestGroup.Count)
+            {
+                largestGroup = group;
+            }
         }
+
+        return largestGroup;
     }
 
     void ConstrainNeighbors(List<int>[,] possible, int cx, int cz, int chosenIndex)
